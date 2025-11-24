@@ -2,7 +2,14 @@
 nixPkgs = ["python310", "stockfish"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = [
+  "echo 'Searching for Stockfish...'",
+  "which stockfish || echo 'stockfish not in PATH'",
+  "find /nix/store -name stockfish -type f 2>/dev/null || echo 'stockfish not found in /nix/store'",
+  "ls -la /usr/bin/stockfish 2>/dev/null || echo '/usr/bin/stockfish not found'",
+  "ls -la /usr/games/stockfish 2>/dev/null || echo '/usr/games/stockfish not found'",
+  "pip install -r requirements.txt"
+]
 
 [start]
 cmd = "python main.py"
