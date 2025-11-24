@@ -9,3 +9,6 @@ cmd = "python main.py"
 
 [variables]
 STOCKFISH_PATH = "/nix/store/*-stockfish-*/bin/stockfish"
+
+[healthcheck]
+path = "/health"

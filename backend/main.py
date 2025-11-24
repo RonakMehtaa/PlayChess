@@ -151,6 +151,12 @@ async def root():
     }
 
 
+@app.get("/health")
+async def health_check():
+    """Railway health check endpoint."""
+    return {"status": "healthy"}
+
+
 @app.post("/start_game", response_model=StartGameResponse)
 async def start_game(request: StartGameRequest):
     """
@@ -328,4 +334,5 @@ async def list_games():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
