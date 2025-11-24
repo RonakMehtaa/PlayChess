@@ -38,40 +38,60 @@ async def lifespan(app: FastAPI):
     game_manager = GameManager()
     
     # Initialize Stockfish
-    # Try common Stockfish paths for different environments
+    import subprocess
+    import shutil
+    
     stockfish_path = os.getenv("STOCKFISH_PATH")
+    logger.info(f"STOCKFISH_PATH env var: {stockfish_path}")
+    
     if not stockfish_path:
-        # Try common locations
-        import subprocess
-        import shutil
-        
         # First, try to find stockfish in PATH
         stockfish_in_path = shutil.which("stockfish")
         if stockfish_in_path:
             stockfish_path = stockfish_in_path
             logger.info(f"Found Stockfish in PATH: {stockfish_path}")
         else:
+            logger.info("Stockfish not in PATH, trying common locations...")
             # Try specific paths
             for path in ["/usr/games/stockfish", "/usr/bin/stockfish", "/usr/local/bin/stockfish"]:
+                logger.info(f"Checking: {path}")
                 if os.path.exists(path):
                     try:
-                        subprocess.run([path, "--version"], capture_output=True, timeout=1, check=True)
+                        result = subprocess.run([path, "--version"], capture_output=True, timeout=2, check=True)
                         stockfish_path = path
                         logger.info(f"Found Stockfish at: {path}")
+                        logger.info(f"Stockfish version: {result.stdout.decode()}")
                         break
                     except Exception as e:
-                        logger.debug(f"Failed to verify {path}: {e}")
+                        logger.warning(f"Failed to verify {path}: {e}")
                         continue
+                else:
+                    logger.info(f"Path does not exist: {path}")
     
     if not stockfish_path:
-        logger.error("Stockfish not found in any common location")
-        stockfish_path = "stockfish"  # Last resort - try anyway
+        logger.error("Stockfish not found in any location!")
+        # List what's in common bin directories
+        for bindir in ["/usr/bin", "/usr/games", "/usr/local/bin"]:
+            if os.path.exists(bindir):
+                try:
+                    files = os.listdir(bindir)
+                    stockfish_files = [f for f in files if 'stock' in f.lower()]
+                    if stockfish_files:
+                        logger.info(f"Stockfish-related files in {bindir}: {stockfish_files}")
+                except Exception as e:
+                    logger.warning(f"Cannot list {bindir}: {e}")
+        
+        stockfish_path = "stockfish"  # Last resort
     
     try:
+        logger.info(f"Attempting to initialize Stockfish with path: {stockfish_path}")
         stockfish = StockfishEngine(stockfish_path)
-        logger.info(f"Stockfish initialized successfully from: {stockfish_path}")
+        logger.info(f"✅ Stockfish initialized successfully!")
     except Exception as e:
-        logger.error(f"Failed to initialize Stockfish: {e}")
+        logger.error(f"❌ Failed to initialize Stockfish: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         logger.warning("Server will start but games will fail without Stockfish")
     
     yield
