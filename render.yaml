@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: chess-backend
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt && apt-get update && apt-get install -y stockfish"
+    startCommand: "python main.py"
+    envVars:
+      - key: STOCKFISH_PATH
+        value: /usr/games/stockfish
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /

@@ -38,7 +38,22 @@ async def lifespan(app: FastAPI):
     game_manager = GameManager()
     
     # Initialize Stockfish
-    stockfish_path = os.getenv("STOCKFISH_PATH", "stockfish")
+    # Try common Stockfish paths for different environments
+    stockfish_path = os.getenv("STOCKFISH_PATH")
+    if not stockfish_path:
+        # Try common locations
+        for path in ["/usr/games/stockfish", "/usr/bin/stockfish", "stockfish"]:
+            try:
+                import subprocess
+                subprocess.run([path, "--version"], capture_output=True, timeout=1)
+                stockfish_path = path
+                break
+            except:
+                continue
+    
+    if not stockfish_path:
+        stockfish_path = "stockfish"
+    
     try:
         stockfish = StockfishEngine(stockfish_path)
         logger.info(f"Stockfish initialized from: {stockfish_path}")
@@ -63,9 +78,19 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Allow local development and Vercel deployments
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+if "*" not in allowed_origins:
+    # Add common Vercel patterns
+    allowed_origins.extend([
+        "https://*.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
+    allow_origins=["*"],  # Allow all for development; restrict in production via ALLOWED_ORIGINS env var
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
