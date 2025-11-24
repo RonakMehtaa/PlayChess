@@ -42,21 +42,34 @@ async def lifespan(app: FastAPI):
     stockfish_path = os.getenv("STOCKFISH_PATH")
     if not stockfish_path:
         # Try common locations
-        for path in ["/usr/games/stockfish", "/usr/bin/stockfish", "stockfish"]:
-            try:
-                import subprocess
-                subprocess.run([path, "--version"], capture_output=True, timeout=1)
-                stockfish_path = path
-                break
-            except:
-                continue
+        import subprocess
+        import shutil
+        
+        # First, try to find stockfish in PATH
+        stockfish_in_path = shutil.which("stockfish")
+        if stockfish_in_path:
+            stockfish_path = stockfish_in_path
+            logger.info(f"Found Stockfish in PATH: {stockfish_path}")
+        else:
+            # Try specific paths
+            for path in ["/usr/games/stockfish", "/usr/bin/stockfish", "/usr/local/bin/stockfish"]:
+                if os.path.exists(path):
+                    try:
+                        subprocess.run([path, "--version"], capture_output=True, timeout=1, check=True)
+                        stockfish_path = path
+                        logger.info(f"Found Stockfish at: {path}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Failed to verify {path}: {e}")
+                        continue
     
     if not stockfish_path:
-        stockfish_path = "stockfish"
+        logger.error("Stockfish not found in any common location")
+        stockfish_path = "stockfish"  # Last resort - try anyway
     
     try:
         stockfish = StockfishEngine(stockfish_path)
-        logger.info(f"Stockfish initialized from: {stockfish_path}")
+        logger.info(f"Stockfish initialized successfully from: {stockfish_path}")
     except Exception as e:
         logger.error(f"Failed to initialize Stockfish: {e}")
         logger.warning("Server will start but games will fail without Stockfish")
