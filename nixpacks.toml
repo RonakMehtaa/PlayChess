@@ -2,13 +2,10 @@
 nixPkgs = ["python310", "stockfish"]
 
 [phases.install]
-cmds = ["pip install -r backend/requirements.txt"]
-
-[phases.build]
-cmds = ["echo 'Build complete'"]
+cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "cd backend && python main.py"
+cmd = "python main.py"
 
 [variables]
 STOCKFISH_PATH = "/nix/store/*-stockfish-*/bin/stockfish"
