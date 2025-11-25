@@ -10,8 +10,8 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Verify stockfish is installed
-RUN stockfish --version || (echo "Stockfish not found!" && exit 1)
+# Verify stockfish is installed and show its location
+RUN ls -la /usr/games/stockfish && /usr/games/stockfish --version
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
