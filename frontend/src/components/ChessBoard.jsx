@@ -139,7 +139,16 @@ const ChessBoard = () => {
       }
     } catch (error) {
       console.error('Error making move:', error);
-      setStatusMessage('Error processing move.');
+      
+      // Check if it's a 404 error (game not found)
+      if (error.response?.status === 404) {
+        setStatusMessage('Game session expired. Please start a new game.');
+        setGameStatus('ended');
+        alert('Your game session has expired (server may have restarted). Please start a new game.');
+      } else {
+        setStatusMessage(`Error: ${error.response?.data?.detail || error.message}`);
+      }
+      
       setIsThinking(false);
       return false;
     }
