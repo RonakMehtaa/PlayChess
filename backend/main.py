@@ -84,9 +84,25 @@ async def lifespan(app: FastAPI):
     try:
         logger.info(f"Attempting to initialize Stockfish from: {stockfish_path}")
         
+        # Debug: Check file system
+        logger.info(f"Current working directory: {os.getcwd()}")
+        logger.info(f"os.path.exists('{stockfish_path}'): {os.path.exists(stockfish_path)}")
+        logger.info(f"os.path.isfile('{stockfish_path}'): {os.path.isfile(stockfish_path)}")
+        
         # Verify the file exists and is executable before passing to engine
         if stockfish_path != "stockfish":  # Skip check for fallback
             if not os.path.exists(stockfish_path):
+                # Additional debugging
+                logger.error(f"Path does not exist: {stockfish_path}")
+                logger.error(f"Checking parent directory: {os.path.dirname(stockfish_path)}")
+                parent_dir = os.path.dirname(stockfish_path)
+                if os.path.exists(parent_dir):
+                    logger.error(f"Parent directory exists, contents:")
+                    try:
+                        contents = os.listdir(parent_dir)
+                        logger.error(f"  {contents}")
+                    except Exception as e:
+                        logger.error(f"  Cannot list directory: {e}")
                 raise RuntimeError(f"Stockfish path does not exist: {stockfish_path}")
             if not os.access(stockfish_path, os.X_OK):
                 raise RuntimeError(f"Stockfish path exists but is not executable: {stockfish_path}")
