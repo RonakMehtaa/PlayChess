@@ -62,7 +62,7 @@ const ChessBoard = () => {
   };
 
   // Handle piece drop (player move)
-  const onDrop = async (sourceSquare, targetSquare) => {
+  const onDrop = (sourceSquare, targetSquare) => {
     // Check if it's player's turn
     const isPlayerTurn = 
       (playerColor === 'white' && game.turn() === 'w') ||
@@ -81,77 +81,84 @@ const ChessBoard = () => {
     const move = sourceSquare + targetSquare;
     
     // Try move locally first for validation
-    try {
-      const gameCopy = new Chess(game.fen());
-      const result = gameCopy.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q', // Always promote to queen for simplicity
-      });
+    const gameCopy = new Chess(game.fen());
+    const result = gameCopy.move({
+      from: sourceSquare,
+      to: targetSquare,
+      promotion: 'q', // Always promote to queen for simplicity
+    });
 
-      if (result === null) {
-        setStatusMessage('Illegal move!');
-        return false;
-      }
-
-      // Move is valid, send to backend
-      setIsThinking(true);
-      setStatusMessage('Bot is thinking...');
-
-      const response = await sendPlayerMove(gameId, move);
-
-      if (response.success) {
-        // Update game with new position
-        const newGame = new Chess(response.board_fen);
-        setGame(newGame);
-
-        // Update move history
-        const newHistory = [...moveHistory, move];
-        if (response.bot_move) {
-          newHistory.push(response.bot_move);
-          setStatusMessage(`Bot played: ${response.bot_move}`);
-        }
-        setMoveHistory(newHistory);
-
-        // Update evaluation if available
-        if (response.evaluation !== null && response.evaluation !== undefined) {
-          setEvaluation(response.evaluation);
-        }
-
-        // Check game status
-        if (response.status !== 'ongoing') {
-          setGameStatus('ended');
-          if (response.status === 'checkmate') {
-            setStatusMessage(`Checkmate! ${response.winner} wins!`);
-          } else if (response.status === 'stalemate') {
-            setStatusMessage('Stalemate! Draw.');
-          } else {
-            setStatusMessage(`Game ended: ${response.status}`);
-          }
-        }
-
-        setIsThinking(false);
-        return true;
-      } else {
-        setStatusMessage('Invalid move!');
-        setIsThinking(false);
-        return false;
-      }
-    } catch (error) {
-      console.error('Error making move:', error);
-      
-      // Check if it's a 404 error (game not found)
-      if (error.response?.status === 404) {
-        setStatusMessage('Game session expired. Please start a new game.');
-        setGameStatus('ended');
-        alert('Your game session has expired (server may have restarted). Please start a new game.');
-      } else {
-        setStatusMessage(`Error: ${error.response?.data?.detail || error.message}`);
-      }
-      
-      setIsThinking(false);
+    if (result === null) {
+      setStatusMessage('Illegal move!');
       return false;
     }
+
+    // Move is valid locally, update immediately for responsiveness
+    setGame(gameCopy);
+    setIsThinking(true);
+    setStatusMessage('Bot is thinking...');
+
+    // Send to backend asynchronously
+    sendPlayerMove(gameId, move)
+      .then(response => {
+        if (response.success) {
+          // Update game with backend's authoritative position
+          const newGame = new Chess(response.board_fen);
+          setGame(newGame);
+
+          // Update move history
+          const newHistory = [...moveHistory, move];
+          if (response.bot_move) {
+            newHistory.push(response.bot_move);
+            setStatusMessage(`Bot played: ${response.bot_move}`);
+          }
+          setMoveHistory(newHistory);
+
+          // Update evaluation if available
+          if (response.evaluation !== null && response.evaluation !== undefined) {
+            setEvaluation(response.evaluation);
+          }
+
+          // Check game status
+          if (response.status !== 'ongoing') {
+            setGameStatus('ended');
+            if (response.status === 'checkmate') {
+              setStatusMessage(`Checkmate! ${response.winner} wins!`);
+            } else if (response.status === 'stalemate') {
+              setStatusMessage('Stalemate! Draw.');
+            } else {
+              setStatusMessage(`Game ended: ${response.status}`);
+            }
+          }
+
+          setIsThinking(false);
+        } else {
+          // Revert the move if backend rejects it
+          setGame(new Chess(game.fen()));
+          setStatusMessage('Invalid move!');
+          setIsThinking(false);
+        }
+      })
+      .catch(error => {
+        console.error('Error making move:', error);
+        
+        // Revert the optimistic update
+        setGame(new Chess(game.fen()));
+        
+        // Check if it's a 404 error (game not found)
+        if (error.response?.status === 404) {
+          setStatusMessage('Game session expired. Please start a new game.');
+          setGameStatus('ended');
+          alert('Your game session has expired (server may have restarted). Please start a new game.');
+        } else {
+          setStatusMessage(`Error: ${error.response?.data?.detail || error.message}`);
+        }
+        
+        setIsThinking(false);
+      });
+
+    // Return true immediately to allow the piece to move visually
+    return true;
   };
 
   // Format evaluation score
