@@ -13,12 +13,15 @@ const ChessBoard = () => {
   const [game, setGame] = useState(new Chess());
   const [gameId, setGameId] = useState(null);
   const [playerColor, setPlayerColor] = useState('white');
-  const [botLevel, setBotLevel] = useState(10);
+  const [botElo, setBotElo] = useState(1500);
   const [gameStatus, setGameStatus] = useState('setup'); // setup, playing, ended
   const [statusMessage, setStatusMessage] = useState('');
   const [moveHistory, setMoveHistory] = useState([]);
   const [isThinking, setIsThinking] = useState(false);
   const [evaluation, setEvaluation] = useState(null);
+
+  // Available ELO ratings
+  const availableRatings = [1320, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2200, 2400, 2600, 2800, 3000];
 
   // Reset game state
   const resetGame = () => {
@@ -37,7 +40,7 @@ const ChessBoard = () => {
       setIsThinking(true);
       setStatusMessage('Starting game...');
 
-      const response = await startGame(playerColor, botLevel);
+      const response = await startGame(playerColor, botElo);
       
       setGameId(response.game_id);
       const newGame = new Chess(response.board_fen);
@@ -168,12 +171,16 @@ const ChessBoard = () => {
     return pawns > 0 ? `+${pawns}` : pawns;
   };
 
-  // Get difficulty label
-  const getDifficultyLabel = (level) => {
-    if (level <= 5) return 'Beginner';
-    if (level <= 10) return 'Intermediate';
-    if (level <= 15) return 'Advanced';
-    return 'Expert';
+  // Get rating category label
+  const getRatingCategory = (elo) => {
+    if (elo < 1400) return 'Beginner';
+    if (elo < 1600) return 'Casual Player';
+    if (elo < 1800) return 'Intermediate';
+    if (elo < 2000) return 'Advanced';
+    if (elo < 2200) return 'Expert';
+    if (elo < 2400) return 'Master';
+    if (elo < 2600) return 'International Master';
+    return 'Grandmaster';
   };
 
   return (
@@ -201,19 +208,18 @@ const ChessBoard = () => {
               </div>
 
               <div className="control-group">
-                <label>Bot Difficulty: {botLevel} ({getDifficultyLabel(botLevel)})</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="20"
-                  value={botLevel}
-                  onChange={(e) => setBotLevel(parseInt(e.target.value))}
-                  className="slider"
-                />
-                <div className="difficulty-labels">
-                  <span>0 (Easy)</span>
-                  <span>20 (Hard)</span>
-                </div>
+                <label>Bot Rating: {botElo} ({getRatingCategory(botElo)})</label>
+                <select 
+                  value={botElo} 
+                  onChange={(e) => setBotElo(parseInt(e.target.value))}
+                  className="rating-select"
+                >
+                  {availableRatings.map(rating => (
+                    <option key={rating} value={rating}>
+                      {rating} - {getRatingCategory(rating)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <button 
@@ -232,7 +238,7 @@ const ChessBoard = () => {
                 <strong>Playing as:</strong> {playerColor}
               </div>
               <div className="info-item">
-                <strong>Bot Level:</strong> {botLevel} ({getDifficultyLabel(botLevel)})
+                <strong>Bot Rating:</strong> {botElo} ({getRatingCategory(botElo)})
               </div>
               <div className="info-item">
                 <strong>Status:</strong> {gameStatus}
@@ -294,29 +300,41 @@ const ChessBoard = () => {
           <h3>How to Play</h3>
           <ul className="instructions">
             <li>Choose your color (White/Black)</li>
-            <li>Select bot difficulty (0-20)</li>
+            <li>Select bot ELO rating</li>
             <li>Click "Start Game"</li>
             <li>Drag and drop pieces to move</li>
             <li>Bot responds automatically</li>
           </ul>
 
-          <h3>Difficulty Guide</h3>
+          <h3>Rating Guide</h3>
           <div className="difficulty-guide">
             <div className="guide-item">
-              <strong>0-5:</strong> Beginner<br/>
-              <small>Makes obvious mistakes</small>
+              <strong>1320-1400:</strong> Beginner<br/>
+              <small>Learning the basics</small>
             </div>
             <div className="guide-item">
-              <strong>6-10:</strong> Intermediate<br/>
-              <small>Casual player level</small>
+              <strong>1400-1600:</strong> Casual<br/>
+              <small>Recreational player</small>
             </div>
             <div className="guide-item">
-              <strong>11-15:</strong> Advanced<br/>
+              <strong>1600-1800:</strong> Intermediate<br/>
               <small>Club player level</small>
             </div>
             <div className="guide-item">
-              <strong>16-20:</strong> Expert<br/>
-              <small>Master level play</small>
+              <strong>1800-2000:</strong> Advanced<br/>
+              <small>Strong club player</small>
+            </div>
+            <div className="guide-item">
+              <strong>2000-2200:</strong> Expert<br/>
+              <small>Candidate Master</small>
+            </div>
+            <div className="guide-item">
+              <strong>2200-2400:</strong> Master<br/>
+              <small>FIDE Master level</small>
+            </div>
+            <div className="guide-item">
+              <strong>2400+:</strong> Elite<br/>
+              <small>Grandmaster level</small>
             </div>
           </div>
         </div>

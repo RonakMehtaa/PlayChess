@@ -18,7 +18,7 @@ class GameState:
     game_id: str
     board_fen: str
     player_color: str  # "white" or "black"
-    bot_level: int  # 0-20
+    bot_elo: int  # 1320-3000
     move_history: List[str]
     status: str  # "ongoing", "checkmate", "stalemate", "draw"
     winner: Optional[str]  # "white", "black", or None
@@ -34,18 +34,22 @@ class GameState:
 class GameManager:
     """Manages multiple chess games in memory."""
     
+    # ELO rating constraints
+    MIN_ELO = 1320
+    MAX_ELO = 3000
+    
     def __init__(self):
         """Initialize the game manager with empty game storage."""
         self.games: Dict[str, GameState] = {}
         logger.info("Game manager initialized")
     
-    def create_game(self, player_color: str, bot_level: int) -> GameState:
+    def create_game(self, player_color: str, bot_elo: int) -> GameState:
         """
         Create a new chess game.
         
         Args:
             player_color: "white" or "black"
-            bot_level: Skill level 0-20
+            bot_elo: Bot ELO rating (1320-3000)
             
         Returns:
             GameState object
@@ -54,7 +58,7 @@ class GameManager:
         if player_color not in ["white", "black"]:
             raise ValueError("player_color must be 'white' or 'black'")
         
-        bot_level = max(0, min(20, bot_level))
+        bot_elo = max(self.MIN_ELO, min(self.MAX_ELO, bot_elo))
         
         # Create new game
         game_id = str(uuid.uuid4())
@@ -64,7 +68,7 @@ class GameManager:
             game_id=game_id,
             board_fen=board.fen(),
             player_color=player_color,
-            bot_level=bot_level,
+            bot_elo=bot_elo,
             move_history=[],
             status="ongoing",
             winner=None,
@@ -74,7 +78,7 @@ class GameManager:
         )
         
         self.games[game_id] = game_state
-        logger.info(f"Created game {game_id}: {player_color} vs bot (level {bot_level})")
+        logger.info(f"Created game {game_id}: {player_color} vs bot (ELO {bot_elo})")
         
         return game_state
     

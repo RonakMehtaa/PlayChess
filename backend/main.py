@@ -156,7 +156,7 @@ app.add_middleware(
 # Request/Response Models
 class StartGameRequest(BaseModel):
     player_color: str = Field(..., pattern="^(white|black)$", description="Player color: white or black")
-    bot_level: int = Field(..., ge=0, le=20, description="Bot difficulty level (0-20)")
+    bot_elo: int = Field(..., ge=1320, le=3000, description="Bot ELO rating (1320-3000)")
 
 
 class StartGameResponse(BaseModel):
@@ -164,7 +164,7 @@ class StartGameResponse(BaseModel):
     board_fen: str
     current_turn: str
     player_color: str
-    bot_level: int
+    bot_elo: int
     bot_move: Optional[str] = None  # If player is black, bot makes first move
 
 
@@ -187,7 +187,7 @@ class GameStateResponse(BaseModel):
     game_id: str
     board_fen: str
     player_color: str
-    bot_level: int
+    bot_elo: int
     move_history: List[str]
     status: str
     winner: Optional[str]
@@ -218,7 +218,7 @@ async def start_game(request: StartGameRequest):
     """
     Start a new chess game.
     
-    Creates a new game with specified player color and bot difficulty.
+    Creates a new game with specified player color and bot ELO rating.
     If player chooses black, bot makes the first move.
     """
     if not game_manager:
@@ -229,25 +229,28 @@ async def start_game(request: StartGameRequest):
     
     try:
         # Create new game
-        game = game_manager.create_game(request.player_color, request.bot_level)
+        game = game_manager.create_game(request.player_color, request.bot_elo)
         
         response_data = {
             "game_id": game.game_id,
             "board_fen": game.board_fen,
             "current_turn": game.current_turn,
             "player_color": game.player_color,
-            "bot_level": game.bot_level,
+            "bot_elo": game.bot_elo,
             "bot_move": None
         }
         
         # If player is black, bot (white) makes first move
         if request.player_color == "black":
             board = chess.Board(game.board_fen)
-            bot_move, _ = stockfish.get_best_move(board, request.bot_level)
+            bot_move, _ = stockfish.get_best_move(board, request.bot_elo)
             
             # Apply bot move
             game_manager.apply_move(game.game_id, bot_move.uci())
             updated_game = game_manager.get_game(game.game_id)
+            
+            if not updated_game:
+                raise HTTPException(status_code=500, detail="Failed to retrieve game after bot move")
             
             response_data["bot_move"] = bot_move.uci()
             response_data["board_fen"] = updated_game.board_fen
@@ -298,6 +301,9 @@ async def player_move(request: PlayerMoveRequest):
         # Get updated game state
         game = game_manager.get_game(request.game_id)
         
+        if not game:
+            raise HTTPException(status_code=500, detail="Failed to retrieve game after player move")
+        
         # If game ended after player move, return status
         if game.status != "ongoing":
             return PlayerMoveResponse(
@@ -311,11 +317,14 @@ async def player_move(request: PlayerMoveRequest):
         
         # Get bot move
         board = chess.Board(game.board_fen)
-        bot_move, evaluation = stockfish.get_best_move(board, game.bot_level)
+        bot_move, evaluation = stockfish.get_best_move(board, game.bot_elo)
         
         # Apply bot move
         game_manager.apply_move(request.game_id, bot_move.uci())
         game = game_manager.get_game(request.game_id)
+        
+        if not game:
+            raise HTTPException(status_code=500, detail="Failed to retrieve game after bot move")
         
         return PlayerMoveResponse(
             success=True,
@@ -354,7 +363,7 @@ async def get_game_state(game_id: str):
         game_id=game.game_id,
         board_fen=game.board_fen,
         player_color=game.player_color,
-        bot_level=game.bot_level,
+        bot_elo=game.bot_elo,
         move_history=game.move_history,
         status=game.status,
         winner=game.winner,

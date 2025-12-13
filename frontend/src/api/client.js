@@ -14,22 +14,17 @@ const apiClient = axios.create({
 });
 
 /**
- * Start a new chess game
- * @param {string} playerColor - "white" or "black"
- * @param {number} botLevel - Bot difficulty 0-20
- * @returns {Promise} Game data including game_id and initial state
+ * Start a new game
+ * @param {string} playerColor - 'white' or 'black'
+ * @param {number} botElo - Bot ELO rating (1320-3000)
+ * @returns {Promise<Object>} Game state
  */
-export const startGame = async (playerColor, botLevel) => {
-  try {
-    const response = await apiClient.post('/start_game', {
-      player_color: playerColor,
-      bot_level: botLevel,
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error starting game:', error);
-    throw error;
-  }
+export const startGame = async (playerColor, botElo) => {
+  const response = await apiClient.post('/start_game', {
+    player_color: playerColor,
+    bot_elo: botElo
+  });
+  return response.data;
 };
 
 /**

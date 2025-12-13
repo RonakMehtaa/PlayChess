@@ -1,6 +1,6 @@
 """
 Stockfish Chess Engine Wrapper
-Manages Stockfish initialization and move generation with configurable skill levels.
+Manages Stockfish initialization and move generation with ELO-based difficulty.
 """
 import chess
 import chess.engine
@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class StockfishEngine:
-    """Wrapper for Stockfish chess engine with skill level management."""
+    """Wrapper for Stockfish chess engine with ELO rating management."""
+    
+    # Stockfish rating constraints
+    MIN_ELO = 1320
+    MAX_ELO = 3000
     
     def __init__(self, stockfish_path: str):
         """
@@ -36,15 +40,15 @@ class StockfishEngine:
     def get_best_move(
         self, 
         board: chess.Board, 
-        skill_level: int = 10,
+        elo_rating: int = 1500,
         move_time: float = 0.2
     ) -> Tuple[chess.Move, Optional[int]]:
         """
-        Get best move from Stockfish based on skill level.
+        Get best move from Stockfish based on ELO rating.
         
         Args:
             board: Current chess board state
-            skill_level: Skill level 0-20 (0 = weakest, 20 = strongest)
+            elo_rating: Target ELO rating (1320-3000)
             move_time: Time limit for move calculation in seconds
             
         Returns:
@@ -53,19 +57,31 @@ class StockfishEngine:
         if not self.engine:
             raise RuntimeError("Stockfish engine not initialized")
         
-        # Clamp skill level to valid range
-        skill_level = max(0, min(20, skill_level))
+        # Clamp ELO to valid range
+        elo_rating = max(self.MIN_ELO, min(self.MAX_ELO, elo_rating))
         
-        # Configure engine options based on skill level
-        self.engine.configure({
-            "Skill Level": skill_level,
-            "UCI_LimitStrength": skill_level < 20,
-            "UCI_Elo": self._skill_to_elo(skill_level) if skill_level < 20 else 3000
-        })
+        # Convert ELO to skill level for proper engine configuration
+        skill_level = self._elo_to_skill(elo_rating)
         
-        # Calculate move time based on skill level
-        # Higher levels get slightly more time to think
-        adjusted_time = move_time * (1 + skill_level / 40)
+        # Configure engine options based on ELO rating
+        if elo_rating >= self.MAX_ELO:
+            # Maximum strength - no limitations
+            self.engine.configure({
+                "Skill Level": 20,
+                "UCI_LimitStrength": False,
+            })
+        else:
+            # Limited strength mode
+            self.engine.configure({
+                "Skill Level": skill_level,
+                "UCI_LimitStrength": True,
+                "UCI_Elo": elo_rating
+            })
+        
+        # Calculate move time based on rating
+        # Higher ratings get slightly more time to think
+        rating_factor = (elo_rating - self.MIN_ELO) / (self.MAX_ELO - self.MIN_ELO)
+        adjusted_time = move_time * (1 + rating_factor * 0.5)
         
         # Get best move with time limit
         result = self.engine.play(
@@ -73,6 +89,10 @@ class StockfishEngine:
             chess.engine.Limit(time=adjusted_time),
             info=chess.engine.INFO_SCORE
         )
+        
+        # Ensure we have a valid move
+        if result.move is None:
+            raise RuntimeError("Stockfish failed to generate a move")
         
         # Extract score if available
         score_cp = None
@@ -83,18 +103,19 @@ class StockfishEngine:
         
         return result.move, score_cp
     
-    def _skill_to_elo(self, skill_level: int) -> int:
+    def _elo_to_skill(self, elo_rating: int) -> int:
         """
-        Convert skill level (0-20) to approximate ELO rating.
+        Convert ELO rating to Stockfish skill level (0-20).
         
         Args:
-            skill_level: Skill level 0-20
+            elo_rating: ELO rating (1320-3000)
             
         Returns:
-            Approximate ELO rating (minimum 1320 per Stockfish requirement)
+            Skill level 0-20
         """
-        # Mapping: Level 0 ≈ 1320 ELO (Stockfish minimum), Level 20 ≈ 3000 ELO
-        return int(1320 + (skill_level * 84))
+        # Linear mapping from ELO range to skill level
+        skill = int((elo_rating - self.MIN_ELO) / (self.MAX_ELO - self.MIN_ELO) * 20)
+        return max(0, min(20, skill))
     
     def get_evaluation(self, board: chess.Board, depth: int = 15) -> Optional[int]:
         """
@@ -114,8 +135,9 @@ class StockfishEngine:
         
         if 'score' in info and info['score'].relative:
             score = info['score'].relative.score()
-            # Flip score if black to move
-            return score if board.turn == chess.WHITE else -score
+            if score is not None:
+                # Flip score if black to move
+                return score if board.turn == chess.WHITE else -score
         
         return None
     
